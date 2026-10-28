@@ -82,3 +82,15 @@ jobs:
       - uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  docker:
+       runs-on: ubuntu-latest
+       steps:
+         - uses: actions/checkout@v4
+         - name: Validate the Compose file
+           run: docker compose config --quiet
+         - name: Lint Dockerfiles
+           run: |
+             for f in docker/*/Dockerfile; do
+               echo "Linting $f"
+               docker run --rm -i hadolint/hadolint:v2.12.0 < "$f"
+             done

@@ -1,0 +1,43 @@
+name: ids-lab
+
+services:
+  victim:
+    build:
+      context: .
+      dockerfile: docker/victim/Dockerfile
+    image: ids-lab/victim:dev
+    container_name: ids-lab-victim
+    hostname: victim
+    init: true
+    read_only: true
+    # Writable scratch space for the few paths nginx and sshd need at runtime.
+    tmpfs:
+      - /run
+      - /tmp
+      - /var/cache/nginx
+    # Drop everything, then add back only what nginx and sshd need to start:
+    # binding ports 22 and 80, switching to unprivileged users, and chroot.
+    cap_drop: [ALL]
+    cap_add: [CHOWN, NET_BIND_SERVICE, SETGID, SETUID, SYS_CHROOT]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 128
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+    networks:
+      lab:
+        ipv4_address: 172.30.0.10
+
+networks:
+  # internal: true gives the containers no route to the internet or to the host
+  # network. This is what keeps the attack traffic inside the lab.
+  lab:
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
