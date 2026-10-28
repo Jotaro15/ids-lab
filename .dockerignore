@@ -1,4 +1,5 @@
 # Only what the lab images need is sent to Docker when building.
 *
 !docker/
-!src/idslab/lab/benign.py
+!pyproject.toml
+!src/idslab/

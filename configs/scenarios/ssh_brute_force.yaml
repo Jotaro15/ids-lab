@@ -1,0 +1,15 @@
+# SSH brute force scenario: repeated login attempts against the victim's SSH
+# server.
+#
+# This repository does not ship a ready-to-run brute-force command. Fill in
+# `command` yourself once the lab is running, using hydra's own
+# documentation (`hydra -h` or `man hydra`) and a short, local word list. A
+# handful of attempts gives the same traffic pattern as a long run; there is
+# no need for more. It only ever reaches the victim container's lab-only
+# throwaway account, on the internal lab network.
+name: ssh_brute_force
+attack_type: ssh_brute_force
+description: A password brute force against the victim's SSH server.
+target: victim
+timeout: 30
+command: []
