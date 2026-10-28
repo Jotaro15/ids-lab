@@ -7,6 +7,9 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from idslab.capture import capture_packets as run_capture
+from idslab.capture import read_packets
+from idslab.features import build_flows, write_flows_csv
+from idslab.features.flows import DEFAULT_IDLE_TIMEOUT
 from idslab.lab.runner import DEFAULT_LAB_SUBNET, run_scenario
 from idslab.lab.scenario import load_scenario
 
@@ -44,6 +47,21 @@ def _build_parser() -> argparse.ArgumentParser:
         "--duration", type=float, required=True, help="how long to capture, in seconds"
     )
     capture_run_parser.add_argument("--output", type=Path, required=True, help="pcap file to write")
+
+    flows_parser = subparsers.add_parser("flows", help="turn captured packets into flows")
+    flows_subparsers = flows_parser.add_subparsers(dest="flows_command", required=True)
+
+    flows_build_parser = flows_subparsers.add_parser(
+        "build", help="group the packets of a pcap file into flows and write them as CSV"
+    )
+    flows_build_parser.add_argument("pcap_file", type=Path, help="pcap file to read")
+    flows_build_parser.add_argument("--output", type=Path, required=True, help="CSV file to write")
+    flows_build_parser.add_argument(
+        "--idle-timeout",
+        type=float,
+        default=DEFAULT_IDLE_TIMEOUT,
+        help="seconds of silence after which a flow is considered over",
+    )
     return parser
 
 
@@ -66,6 +84,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "capture" and args.capture_command == "run":
         output_path = run_capture(args.interface, args.duration, args.output)
         print(f"wrote {output_path}")
+        return 0
+
+    if args.command == "flows" and args.flows_command == "build":
+        flows = build_flows(read_packets(args.pcap_file), args.idle_timeout)
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        with args.output.open("w", newline="", encoding="utf-8") as destination:
+            write_flows_csv(flows, destination)
+        print(f"wrote {len(flows)} flows to {args.output}")
         return 0
 
     return 1
