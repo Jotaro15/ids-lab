@@ -14,3 +14,4 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Isolated Docker network and a victim container running nginx and SSH.....
 - Benign traffic generator and container: web requests and SSH logins against the victim.
 - Attack scenario framework: target guard, scenario loader, manifest writer, and the idslab scenario run command.
+- Sensor container and the idslab capture run command, using tcpdump to write pcap files.
