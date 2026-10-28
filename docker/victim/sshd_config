@@ -1,0 +1,10 @@
+# Deliberately weak: password login is the target of the brute force scenario.
+# This account only exists inside the isolated lab network.
+Port 22
+HostKey /etc/ssh/ssh_host_ed25519_key
+HostKey /etc/ssh/ssh_host_rsa_key
+PermitRootLogin no
+AllowUsers labuser
+PasswordAuthentication yes
+PubkeyAuthentication no
+LogLevel INFO

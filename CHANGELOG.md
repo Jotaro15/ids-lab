@@ -11,3 +11,4 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Python package layout with a `src/` directory, tooling configuration and a smoke test.
 - Pre-commit hooks, a CI workflow (lint, type check, tests, security checks, secret scanning) and Dependabot updates.
 - Contribution guide, security policy, and issue and pull request templates.
+- Isolated Docker network and a victim container running nginx and SSH.....
