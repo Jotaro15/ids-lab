@@ -7,6 +7,7 @@ These tests need Docker and are skipped by default. Run them with:
 
 import shutil
 import subprocess
+import time
 from collections.abc import Iterator
 
 import pytest
@@ -18,6 +19,8 @@ pytestmark = [
 
 NETWORK = "ids-lab_lab"
 VICTIM = "ids-lab-victim"
+BENIGN = "ids-lab-benign"
+BENIGN_IP = "172.30.0.20"
 VICTIM_IP = "172.30.0.10"
 IMAGE = "ids-lab/victim:dev"
 
@@ -86,3 +89,27 @@ def test_lab_has_no_route_to_the_internet() -> None:
         IMAGE, "-q", "-T", "3", "-O", "-", "http://1.1.1.1/",
     )  # fmt: skip
     assert result.returncode != 0
+
+
+def _victim_logs_contain(needle: str, timeout: float = 60.0) -> bool:
+    """Poll the victim's logs until `needle` shows up or the timeout expires."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        logs = _docker("logs", VICTIM)
+        if needle in logs.stdout + logs.stderr:
+            return True
+        time.sleep(2)
+    return False
+
+
+def test_benign_container_is_running() -> None:
+    result = _docker("inspect", BENIGN, "--format", "{{.State.Running}}")
+    assert result.stdout.strip() == "true"
+
+
+def test_benign_web_requests_reach_the_victim() -> None:
+    assert _victim_logs_contain(f"{BENIGN_IP} - - ")
+
+
+def test_benign_ssh_logins_succeed() -> None:
+    assert _victim_logs_contain(f"Accepted password for labuser from {BENIGN_IP}")
