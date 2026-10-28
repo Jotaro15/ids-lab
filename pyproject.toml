@@ -12,7 +12,7 @@ license = { text = "MIT" }
 dependencies = [
     "scapy>=2.5",
     "scikit-learn>=1.4",
-    "pyyaml>=6.0",
+    "pyyaml>=6.0.3",
 ]
 
 [project.optional-dependencies]
