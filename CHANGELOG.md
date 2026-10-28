@@ -12,3 +12,4 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Pre-commit hooks, a CI workflow (lint, type check, tests, security checks, secret scanning) and Dependabot updates.
 - Contribution guide, security policy, and issue and pull request templates.
 - Isolated Docker network and a victim container running nginx and SSH.....
+- Benign traffic generator and container: web requests and SSH logins against the victim.

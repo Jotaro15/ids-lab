@@ -33,6 +33,41 @@ services:
       lab:
         ipv4_address: 172.30.0.10
 
+  benign:
+    build:
+      context: .
+      dockerfile: docker/benign/Dockerfile
+    image: ids-lab/benign:dev
+    container_name: ids-lab-benign
+    hostname: benign
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 128m
+    cpus: 0.25
+    pids_limit: 64
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+    environment:
+      # Throwaway password of the victim's lab account, which only exists
+      # inside the isolated network.
+      LAB_SSH_PASSWORD: sunshine
+    # A fixed seed makes the benign traffic reproducible from one run to the next.
+    command: ["--target", "victim", "--seed", "42"]
+    depends_on:
+      victim:
+        condition: service_healthy
+    networks:
+      lab:
+        ipv4_address: 172.30.0.20
+
 networks:
   # internal: true gives the containers no route to the internet or to the host
   # network. This is what keeps the attack traffic inside the lab.
