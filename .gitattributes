@@ -1,0 +1,8 @@
+# Always check text files out with LF line endings, even on Windows.
+# Shell scripts and Dockerfiles break inside Linux containers if they get CRLF.
+* text=auto eol=lf
+
+# Never touch binary files.
+*.pcap binary
+*.joblib binary
+*.png binary

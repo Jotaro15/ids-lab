@@ -1,0 +1,78 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "idslab"
+version = "0.0.1"
+description = "Network intrusion detection lab: simulated attacks in Docker, traffic capture with Scapy, rule-based and machine-learning detection."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+    "scapy>=2.5",
+    "scikit-learn>=1.4",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "bandit>=1.7",
+    "mypy>=1.10",
+    "pip-audit>=2.7",
+    "pre-commit>=3.7",
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "ruff>=0.6",
+    "types-PyYAML",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+idslab = ["py.typed"]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",   # pycodestyle
+    "F",        # pyflakes
+    "I",        # import sorting
+    "B",        # bugbear: likely bugs
+    "UP",       # pyupgrade
+    "S",        # bandit-style security checks
+    "SIM",      # simplifications
+    "C4",       # comprehensions
+    "PTH",      # pathlib instead of os.path
+    "D",        # docstrings
+]
+ignore = ["D203", "D213"]  # keep the Google-style pair: D211 and D212
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "D"]  # asserts and missing docstrings are fine in tests
+
+[tool.mypy]
+strict = true
+python_version = "3.11"
+files = ["src", "tests"]
+
+[[tool.mypy.overrides]]
+module = ["scapy.*", "sklearn.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers -m 'not integration' --cov=idslab --cov-report=term-missing --cov-fail-under=85"
+markers = [
+    "integration: needs Docker and a running lab (skipped by default)",
+]
+
+[tool.coverage.run]
+branch = true

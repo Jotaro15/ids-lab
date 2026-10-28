@@ -218,3 +218,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Project data (never committed)
+data/
+models/
+*.pcap
+*.joblib
+.env
