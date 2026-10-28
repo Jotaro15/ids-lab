@@ -68,6 +68,48 @@ services:
       lab:
         ipv4_address: 172.30.0.20
 
+  attacker:
+    build:
+      context: .
+      dockerfile: docker/attacker/Dockerfile
+    image: ids-lab/attacker:dev
+    container_name: ids-lab-attacker
+    hostname: attacker
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp
+    # Runs as root: nmap's SYN scan and hping3 need raw-socket access, which
+    # a non-root user cannot get from cap_add alone without extra setup.
+    # Every other control still applies: all capabilities are dropped except
+    # the two raw-networking ones, the container cannot gain new privileges,
+    # and it never starts automatically (see "profiles" below).
+    cap_drop: [ALL]
+    cap_add: [NET_RAW, NET_ADMIN]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 128
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+    # Only runs when explicitly requested (`--profile attack`), never as
+    # part of a plain `docker compose up`.
+    profiles: ["attack"]
+    working_dir: /work
+    volumes:
+      - .:/work:ro
+      - ./data/raw:/work/data/raw:rw
+    depends_on:
+      victim:
+        condition: service_healthy
+    networks:
+      lab:
+        ipv4_address: 172.30.0.30
+
 networks:
   # internal: true gives the containers no route to the internet or to the host
   # network. This is what keeps the attack traffic inside the lab.

@@ -1,0 +1,15 @@
+# SYN flood scenario: a burst of half-open TCP connections against the
+# victim's web port.
+#
+# This repository does not ship a ready-to-run flood command. Fill in
+# `command` yourself once the lab is running, using hping3's own
+# documentation (`hping3 --help` or `man hping3`). A few seconds is enough
+# to give the detectors a recognisable pattern to learn from; there is no
+# need to run it any longer than that, and it only ever reaches the victim
+# container on the internal lab network.
+name: syn_flood
+attack_type: syn_flood
+description: A SYN flood against the victim's web port.
+target: victim
+timeout: 15
+command: []

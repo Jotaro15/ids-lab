@@ -13,3 +13,4 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Contribution guide, security policy, and issue and pull request templates.
 - Isolated Docker network and a victim container running nginx and SSH.....
 - Benign traffic generator and container: web requests and SSH logins against the victim.
+- Attack scenario framework: target guard, scenario loader, manifest writer, and the idslab scenario run command.

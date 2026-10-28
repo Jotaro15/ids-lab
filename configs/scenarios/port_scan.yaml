@@ -1,0 +1,7 @@
+# TCP SYN scan of the victim's common ports, run with nmap.
+name: port_scan
+attack_type: port_scan
+description: A TCP SYN scan of the victim's common ports.
+target: victim
+timeout: 60
+command: ["nmap", "-sS", "-T4", "-p", "1-1024", "victim"]
