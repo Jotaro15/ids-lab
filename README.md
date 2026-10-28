@@ -106,6 +106,7 @@ Before opening a Pull Request:
 ```bash
 pre-commit run --all-files
 pytest
+mypy
 ```
 
 The checks in CI are `ruff` (lint and format), `mypy` in strict mode, `pytest` with a coverage threshold, `bandit`, `pip-audit`, `gitleaks` and `hadolint`.
