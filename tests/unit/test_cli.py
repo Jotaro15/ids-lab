@@ -4,6 +4,9 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from scapy.layers.inet import IP, TCP
+from scapy.layers.l2 import Ether
+from scapy.utils import wrpcap
 
 from idslab import cli
 
@@ -61,3 +64,28 @@ def test_main_runs_a_capture_and_prints_the_output_path(
 
     assert exit_code == 0
     assert "benign.pcap" in capsys.readouterr().out
+
+
+def test_parse_args_reads_a_flows_build_command() -> None:
+    args = cli.parse_args(["flows", "build", "data/raw/a.pcap", "--output", "data/flows/a.csv"])
+    assert args.command == "flows"
+    assert args.flows_command == "build"
+    assert args.pcap_file == Path("data/raw/a.pcap")
+    assert args.output == Path("data/flows/a.csv")
+    assert args.idle_timeout == 60.0
+
+
+def test_main_writes_flows_to_a_csv_file(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    pcap = tmp_path / "in.pcap"
+    frame = Ether() / IP(src="10.0.0.1", dst="10.0.0.2") / TCP(sport=1234, dport=80, flags="S")
+    frame.time = 100.0
+    wrpcap(str(pcap), [frame])
+    output = tmp_path / "out" / "flows.csv"
+
+    exit_code = cli.main(["flows", "build", str(pcap), "--output", str(output)])
+
+    assert exit_code == 0
+    assert "1 flows" in capsys.readouterr().out
+    assert output.read_text(encoding="utf-8").splitlines()[0].startswith("src_ip,")
