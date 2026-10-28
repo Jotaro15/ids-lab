@@ -12,7 +12,7 @@ import argparse
 import logging
 import os
 import random
-import subprocess
+import subprocess  # nosec B404  # only ever called with fixed arguments, never a shell
 import sys
 import time
 import urllib.error
@@ -72,7 +72,7 @@ def http_get(url: str, timeout: float = 5.0) -> int:
     """
     try:
         # The URL is built from the lab target, never from outside input.
-        with urllib.request.urlopen(url, timeout=timeout) as response:  # noqa: S310
+        with urllib.request.urlopen(url, timeout=timeout) as response:  # noqa: S310  # nosec B310
             response.read()
             return int(response.status)
     except urllib.error.HTTPError as error:
@@ -87,7 +87,7 @@ def ssh_login(target: str, user: str, password: str, timeout: float = 15.0) -> b
     """
     # Host keys change every time the lab is rebuilt, so they are not checked.
     # The password goes through the environment to keep it out of the process list.
-    result = subprocess.run(  # noqa: S603  # fixed arguments, no shell
+    result = subprocess.run(  # noqa: S603  # nosec B603, B607  # fixed arguments, no shell
         [  # noqa: S607  # sshpass is looked up on PATH inside the container
             "sshpass", "-e", "ssh",
             "-o", "StrictHostKeyChecking=no",
@@ -136,7 +136,7 @@ def run(
     Returns:
         The number of requests made.
     """
-    rng = random.Random(config.seed)  # noqa: S311  # simulation, not cryptography
+    rng = random.Random(config.seed)  # noqa: S311  # nosec B311  # simulation, not cryptography
     deadline = None if config.duration is None else clock() + config.duration
     count = 0
     while deadline is None or clock() < deadline:
