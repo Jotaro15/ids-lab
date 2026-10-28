@@ -35,3 +35,29 @@ def test_main_runs_the_scenario_and_prints_the_manifest_path(
 
     assert exit_code == 0
     assert "port_scan.json" in capsys.readouterr().out
+
+
+def test_parse_args_reads_a_capture_run_command() -> None:
+    args = cli.parse_args(
+        ["capture", "run", "--duration", "30", "--output", "data/raw/benign.pcap"]
+    )
+    assert args.command == "capture"
+    assert args.capture_command == "run"
+    assert args.interface == "eth0"
+    assert args.duration == 30.0
+    assert args.output == Path("data/raw/benign.pcap")
+
+
+def test_main_runs_a_capture_and_prints_the_output_path(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def fake_run_capture(interface: str, duration: float, output: Path) -> Path:
+        assert (interface, duration) == ("eth0", 10.0)
+        return output
+
+    monkeypatch.setattr(cli, "run_capture", fake_run_capture)
+
+    exit_code = cli.main(["capture", "run", "--duration", "10", "--output", "data/raw/benign.pcap"])
+
+    assert exit_code == 0
+    assert "benign.pcap" in capsys.readouterr().out

@@ -110,6 +110,41 @@ services:
       lab:
         ipv4_address: 172.30.0.30
 
+  sensor:
+    build:
+      context: .
+      dockerfile: docker/sensor/Dockerfile
+    image: ids-lab/sensor:dev
+    container_name: ids-lab-sensor
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp
+    # Shares the victim's network stack instead of getting its own, so it
+    # sees exactly the traffic the victim sees, with no promiscuous mode and
+    # no separate IP address. This is why it has no "networks" entry below.
+    network_mode: "service:victim"
+    cap_drop: [ALL]
+    cap_add: [NET_RAW, CHOWN, SETUID, SETGID]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 64
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+    # Only runs when asked for, the same way the attacker does.
+    profiles: ["capture"]
+    working_dir: /work
+    volumes:
+      - ./data/raw:/work/data/raw:rw
+    depends_on:
+      victim:
+        condition: service_healthy
+
 networks:
   # internal: true gives the containers no route to the internet or to the host
   # network. This is what keeps the attack traffic inside the lab.
