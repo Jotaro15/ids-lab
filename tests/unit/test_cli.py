@@ -164,3 +164,25 @@ def test_windows_have_an_empty_label_without_manifests(tmp_path: Path) -> None:
     lines = _build_windows(tmp_path)
 
     assert lines[1].endswith(",")
+
+
+def test_detect_writes_one_alert_per_suspicious_window(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    pcap = tmp_path / "scan.pcap"
+    frames = []
+    for port in range(1, 31):
+        frame = Ether() / IP(src="10.0.0.1", dst="10.0.0.2") / TCP(sport=40000 + port, dport=port)
+        frame.time = 100.0 + port * 0.01
+        frames.append(frame)
+    wrpcap(str(pcap), frames)
+    rules = Path(__file__).parents[2] / "configs" / "rules.yaml"
+    output = tmp_path / "out" / "alerts.jsonl"
+
+    exit_code = cli.main(["detect", str(pcap), "--rules", str(rules), "--output", str(output)])
+
+    assert exit_code == 0
+    assert "1 alerts" in capsys.readouterr().out
+    [line] = output.read_text(encoding="utf-8").splitlines()
+    alert = json.loads(line)
+    assert (alert["src_ip"], alert["attack_type"]) == ("10.0.0.1", "port_scan")

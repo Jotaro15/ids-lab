@@ -9,6 +9,7 @@ from typing import TextIO
 
 from idslab.capture import capture_packets as run_capture
 from idslab.capture import read_packets
+from idslab.detection import detect, load_rules, write_alerts_jsonl
 from idslab.features import (
     build_flows,
     build_windows,
@@ -17,7 +18,7 @@ from idslab.features import (
     write_windows_csv,
 )
 from idslab.features.flows import DEFAULT_IDLE_TIMEOUT
-from idslab.features.windows import DEFAULT_WINDOW_SIZE
+from idslab.features.windows import DEFAULT_WINDOW_SIZE, WindowFeatures
 from idslab.lab.manifest import load_manifests
 from idslab.lab.runner import DEFAULT_LAB_SUBNET, run_scenario
 from idslab.lab.scenario import load_scenario
@@ -99,13 +100,37 @@ def _build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_IDLE_TIMEOUT,
         help="seconds of silence after which a flow is considered over",
     )
+
+    detect_parser = subparsers.add_parser("detect", help="flag attacks in a pcap file with rules")
+    detect_parser.add_argument("pcap_file", type=Path, help="pcap file to read")
+    detect_parser.add_argument("--rules", type=Path, required=True, help="rules YAML file")
+    detect_parser.add_argument(
+        "--output", type=Path, required=True, help="JSON Lines file to write the alerts to"
+    )
+    detect_parser.add_argument(
+        "--window-size",
+        type=float,
+        default=DEFAULT_WINDOW_SIZE,
+        help="length of a time window, in seconds",
+    )
+    detect_parser.add_argument(
+        "--idle-timeout",
+        type=float,
+        default=DEFAULT_IDLE_TIMEOUT,
+        help="seconds of silence after which a flow is considered over",
+    )
     return parser
 
 
-def _write_csv(path: Path, write: Callable[[TextIO], None]) -> None:
+def _write_text(path: Path, write: Callable[[TextIO], None]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="", encoding="utf-8") as destination:
         write(destination)
+
+
+def _windows_from_pcap(args: argparse.Namespace) -> list[WindowFeatures]:
+    flows = build_flows(read_packets(args.pcap_file), args.idle_timeout)
+    return build_windows(flows, args.window_size)
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -131,17 +156,23 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "flows" and args.flows_command == "build":
         flows = build_flows(read_packets(args.pcap_file), args.idle_timeout)
-        _write_csv(args.output, lambda out: write_flows_csv(flows, out))
+        _write_text(args.output, lambda out: write_flows_csv(flows, out))
         print(f"wrote {len(flows)} flows to {args.output}")
         return 0
 
     if args.command == "windows" and args.windows_command == "build":
-        flows = build_flows(read_packets(args.pcap_file), args.idle_timeout)
-        windows = build_windows(flows, args.window_size)
+        windows = _windows_from_pcap(args)
         if args.manifests is not None:
             windows = label_windows(windows, load_manifests(args.manifests), args.window_size)
-        _write_csv(args.output, lambda out: write_windows_csv(windows, out))
+        _write_text(args.output, lambda out: write_windows_csv(windows, out))
         print(f"wrote {len(windows)} windows to {args.output}")
+        return 0
+
+    if args.command == "detect":
+        rules = load_rules(args.rules)
+        alerts = detect(_windows_from_pcap(args), rules)
+        _write_text(args.output, lambda out: write_alerts_jsonl(alerts, out))
+        print(f"wrote {len(alerts)} alerts to {args.output}")
         return 0
 
     return 1
