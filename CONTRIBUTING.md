@@ -69,7 +69,7 @@ CI runs the same checks on Python 3.11 and 3.12, plus `bandit`, `pip-audit` and 
 
 ## Working on the lab containers
 
-`docker compose run` does not rebuild an image that already exists, so a change to the Python code is not picked up by the `sensor` or `attacker` containers until the image is rebuilt. Pass `--build` to the `run` command, or run `docker compose build <service>`. The integration tests do the first.
+`docker compose run` does not rebuild an image that already exists, so a change to the Python code is not picked up by the `sensor` or `attacker` containers until the image is rebuilt. Run `docker compose build <service>` before starting the lab, or pass `--build` to the `run` command. The integration tests do the second. Do not use `--build` on a `run` while a capture is in progress: it recreates the victim container and the sensor, which shares its network namespace, stops recording.
 
 ## Reporting a security problem
 

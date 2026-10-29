@@ -10,7 +10,7 @@ It is also an excuse to work through the whole chain: packet capture, traffic an
 
 ## Status
 
-All the code is in place. What is left is running the lab on real captures, publishing the numbers, and tagging the first release.
+The code is complete and has been run on captures recorded in the lab. What is left is tagging the first release.
 
 - [x] Phase 0: project scaffold, tooling and CI
 - [x] Phase 1: isolated lab, benign traffic, attack scenarios, traffic capture
@@ -18,7 +18,7 @@ All the code is in place. What is left is running the lab on real captures, publ
 - [x] Phase 3: rule engine, machine learning models, evaluation
 - [ ] Phase 4: documentation, published results, first release (`v0.1.0`)
 
-There are no performance numbers here on purpose. They will be added once the evaluation has run on real captures and can be reproduced.
+The [results](#results) cover one attack type so far, and they need to be read with the caveats next to them.
 
 ## How it works
 
@@ -39,7 +39,7 @@ There are no performance numbers here on purpose. They will be added once the ev
 | SYN flood | hping3 | A high rate of SYN packets with few completed handshakes |
 | SSH brute force | hydra | Many short connections to port 22 from one source |
 
-The port scan scenario is ready to run. The SYN flood and SSH brute force scenarios ship with an empty `command`, to be filled in locally. See [configs/scenarios/README.md](configs/scenarios/README.md).
+The port scan scenario is ready to run, and it is the only attack recorded and evaluated so far. The SYN flood and SSH brute force scenarios ship with an empty `command`, to be filled in locally. See [configs/scenarios/README.md](configs/scenarios/README.md).
 
 ## Requirements
 
@@ -60,28 +60,35 @@ pip install -e ".[dev]"
 
 ### Record traffic
 
-Start the lab. The victim and the benign traffic generator come up together:
+Build the images once, then start the lab. The victim and the benign traffic generator come up together:
 
 ```bash
-docker compose up -d --build --wait
+docker compose --profile capture --profile attack build
+docker compose up -d --wait
 ```
 
 Record a minute of normal traffic:
 
 ```bash
-docker compose --profile capture run --build --rm sensor idslab capture run --duration 60 --output data/raw/benign_1.pcap
+docker compose --profile capture run --rm sensor idslab capture run --duration 60 --output data/raw/benign_1.pcap
 ```
 
-To record an attack, start the capture in one terminal, then run the scenario from a second one within the next few seconds, so it falls inside the capture:
+To record attacks, start a capture in one terminal, then run the scenario from a second one within the next few seconds, so it falls inside the capture. A single scan lasts a fraction of a second and yields one labelled window, so repeat it, leaving a pause between runs so each scan lands in its own window:
 
 ```bash
-docker compose --profile capture run --build --rm sensor idslab capture run --duration 60 --output data/raw/port_scan_1.pcap
-docker compose --profile attack run --build --rm attacker idslab scenario run configs/scenarios/port_scan.yaml
+# terminal 1
+docker compose --profile capture run --rm sensor idslab capture run --duration 150 --output data/raw/port_scan_1.pcap
+
+# terminal 2, right after
+for i in $(seq 8); do
+  docker compose --profile attack run --rm attacker idslab scenario run configs/scenarios/port_scan.yaml
+  sleep 12
+done
 ```
 
-The scenario writes its manifest to `data/raw`, named after the scenario and its start time. Record several captures of each kind: the train/test split keeps a capture whole, so it needs at least two. When you are done, run `docker compose down`.
+Each run writes a manifest to `data/raw`, named after the scenario and its start time. Record several captures of each kind: the train/test split keeps a capture whole, so it needs at least two. When you are done, run `docker compose down`.
 
-Images are not rebuilt by `docker compose run` unless you pass `--build`, which is why the commands above include it.
+Do not pass `--build` to `docker compose run` while recording. It rebuilds the victim image and recreates the victim container, which ends the sensor's capture early because the two share a network namespace. Rebuild only after changing code, before starting the lab.
 
 ### Analyse the captures
 
@@ -98,10 +105,10 @@ Try the rule engine on a single capture:
 idslab detect data/raw/port_scan_1.pcap --rules configs/rules.yaml --output data/alerts/port_scan_1.jsonl
 ```
 
-Split the captures into a training and a test set, train the models, and evaluate everything on the test set:
+Split the captures into a training and a test set, train the models, and evaluate everything on the test set (in PowerShell, pass `(Get-ChildItem data\windows\*.csv).FullName` instead of the glob):
 
 ```bash
-idslab dataset split data/windows/benign_1.csv data/windows/benign_2.csv data/windows/port_scan_1.csv data/windows/port_scan_2.csv --output-dir data/dataset
+idslab dataset split data/windows/*.csv --output-dir data/dataset
 idslab train data/dataset/train.csv --output-dir models
 idslab evaluate data/dataset/test.csv --model-dir models --output data/report.json
 ```
@@ -113,6 +120,33 @@ idslab predict data/raw/port_scan_1.pcap --detector random_forest --output data/
 ```
 
 Every command has `--help`. Captures, windows, alerts and trained models stay in the `data/` and `models/` folders, which are ignored by Git.
+
+## Results
+
+Measured on the lab captures described below, with the default settings (5 second windows, seed 42, 30% of the captures held out for testing, contamination 5%).
+
+**Data.** Twelve captures: six of normal traffic (14 minutes in total) and six of port scans (41 scans with nmap, 13 minutes, with the normal traffic still running alongside). Together they give 369 windows, 328 benign and 41 port scan. The split put whole captures on each side:
+
+| | Windows | Benign | Port scan | Captures |
+| --- | --- | --- | --- | --- |
+| Training | 222 | 197 | 25 | 8 |
+| Test | 147 | 131 | 16 | `benign_3`, `benign_6`, `port_scan_2`, `port_scan_3` |
+
+**Scores on the test set.**
+
+| Detector | Precision | Recall | F1 | False alarms per hour |
+| --- | --- | --- | --- | --- |
+| Rules | 1.000 | 1.000 | 1.000 | 0.0 |
+| Random Forest | 1.000 | 1.000 | 1.000 | 0.0 |
+| Isolation Forest | 0.533 | 1.000 | 0.696 | 76.9 |
+
+**How to read this.**
+
+- These numbers are not evidence that the detectors are good. A port scan sweeps 1,024 ports within a fraction of a second, while normal traffic in the lab touches a handful, so any threshold between the two separates them. A perfect score on this task is expected.
+- The test set holds 16 attack windows from two captures, all of one attack type and one tool. One more or one fewer miss would change the recall noticeably, and a different seed would put different captures in the test set.
+- The rule thresholds in `configs/rules.yaml` were set before the captures were recorded and were not tuned on them. The SYN flood and SSH brute force rules have not met real traffic.
+- The Isolation Forest finds every scan but also flags about one benign window in ten, roughly 14 false alarms out of 131 benign test windows. It learns what normal looks like without knowing any attack, so it pays for that generality in false alarms, and `--contamination` moves that trade-off in either direction.
+- Every attack comes from one attacker address. Normal traffic in the lab is also scripted, so it is far more regular than traffic on a real network.
 
 ## Safety
 
@@ -135,7 +169,7 @@ To report a security problem in this repository, see [SECURITY.md](SECURITY.md).
 - Windows are labelled using the manifest's start and end times, so labels are slightly generous at the edges of each attack.
 - A window is judged on one source at a time. An attack spread over many sources, such as a distributed flood, is not something the features can see.
 - The Isolation Forest cannot tell a far outlier from the most extreme normal window, so its threshold has to be set with some room. It trades missed attacks against false alarms through `--contamination`.
-- The rule thresholds are starting values chosen from how each tool behaves. They are meant to be tuned against the evaluation.
+- The rule thresholds are starting values chosen from how each tool behaves. They have not been tuned, and only the port scan rule has been checked against recorded traffic.
 - Analysis is offline, on pcap files. Real-time detection is not part of the first release.
 - Scapy is convenient but slow on very large captures.
 
