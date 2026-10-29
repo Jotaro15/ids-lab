@@ -16,6 +16,7 @@ from idslab.detection import (
     load_rules,
     write_alerts_jsonl,
 )
+from idslab.evaluation import evaluate, format_table, write_report_json
 from idslab.features import (
     build_flows,
     build_windows,
@@ -42,6 +43,12 @@ from idslab.ml import (
     train_isolation_forest,
     train_random_forest,
 )
+
+# Detectors that apply a saved model to windows, by the name the model is saved under.
+_MODEL_DETECTORS = {
+    RANDOM_FOREST: detect_with_random_forest,
+    ISOLATION_FOREST: detect_with_isolation_forest,
+}
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -207,6 +214,28 @@ def _build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_IDLE_TIMEOUT,
         help="seconds of silence after which a flow is considered over",
     )
+
+    evaluate_parser = subparsers.add_parser(
+        "evaluate", help="score the detectors against the labels of a window file"
+    )
+    evaluate_parser.add_argument(
+        "windows_file", type=Path, help="labelled window CSV file, e.g. the test set"
+    )
+    evaluate_parser.add_argument(
+        "--rules", type=Path, default=Path("configs/rules.yaml"), help="rules YAML file"
+    )
+    evaluate_parser.add_argument(
+        "--model-dir",
+        type=Path,
+        help="directory of trained models; when omitted, only the rules are scored",
+    )
+    evaluate_parser.add_argument(
+        "--window-size",
+        type=float,
+        default=DEFAULT_WINDOW_SIZE,
+        help="length of the windows in the file, in seconds",
+    )
+    evaluate_parser.add_argument("--output", type=Path, help="JSON file to write the results to")
     return parser
 
 
@@ -306,15 +335,24 @@ def _run(args: argparse.Namespace) -> int:
 
     if args.command == "predict":
         model = load_model(args.model_dir / f"{args.detector}.joblib", args.detector)
-        windows = _windows_from_pcap(args)
-        detect_with_model = (
-            detect_with_random_forest
-            if args.detector == RANDOM_FOREST
-            else detect_with_isolation_forest
-        )
-        flagged = detect_with_model(windows, model)
+        flagged = _MODEL_DETECTORS[args.detector](_windows_from_pcap(args), model)
         _write_text(args.output, lambda out: write_alerts_jsonl(flagged, out))
         print(f"wrote {len(flagged)} alerts to {args.output}")
+        return 0
+
+    if args.command == "evaluate":
+        windows = load_labelled_windows(args.windows_file)
+        results = [
+            evaluate("rules", windows, detect(windows, load_rules(args.rules)), args.window_size)
+        ]
+        if args.model_dir is not None:
+            for kind, detect_with_model in _MODEL_DETECTORS.items():
+                model = load_model(args.model_dir / f"{kind}.joblib", kind)
+                alerts = detect_with_model(windows, model)
+                results.append(evaluate(kind, windows, alerts, args.window_size))
+        print(format_table(results))
+        if args.output is not None:
+            _write_text(args.output, lambda out: write_report_json(results, out))
         return 0
 
     return 1

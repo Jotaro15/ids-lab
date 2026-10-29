@@ -34,14 +34,14 @@ def test_main_runs_the_scenario_and_prints_the_manifest_path(
 
     def fake_run_scenario(scenario: Any, subnet: str, output: Path) -> Path:
         assert scenario == "a-scenario"
-        return output / "port_scan.json"
+        return output / "port_scan_20261029T100000Z.json"
 
     monkeypatch.setattr(cli, "run_scenario", fake_run_scenario)
 
     exit_code = cli.main(["scenario", "run", "configs/scenarios/port_scan.yaml"])
 
     assert exit_code == 0
-    assert "port_scan.json" in capsys.readouterr().out
+    assert "port_scan_20261029T100000Z.json" in capsys.readouterr().out
 
 
 def test_parse_args_reads_a_capture_run_command() -> None:
@@ -365,3 +365,66 @@ def test_a_missing_input_file_is_reported_without_a_traceback(
 
     assert exit_code == 1
     assert capsys.readouterr().err.startswith("error: ")
+
+
+def _write_test_windows(path: Path) -> None:
+    rng = random.Random(1)  # noqa: S311  # test data, not cryptography
+    windows = [
+        _synthetic_window("benign", rng.randint(1, 3), rng.randint(2, 8), rng.uniform(0, 0.2), n)
+        for n in range(40)
+    ] + [_synthetic_window("port_scan", 60 + n, 60 + n, 0.95, 100 + n) for n in range(10)]
+    with path.open("w", newline="", encoding="utf-8") as destination:
+        write_windows_csv(windows, destination)
+
+
+def test_evaluate_scores_the_rules_and_both_models(
+    tmp_path: Path, trained_models: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    test_file = tmp_path / "test.csv"
+    _write_test_windows(test_file)
+    report = tmp_path / "report.json"
+
+    exit_code = cli.main(
+        [
+            "evaluate",
+            str(test_file),
+            "--rules",
+            str(Path(__file__).parents[2] / "configs" / "rules.yaml"),
+            "--model-dir",
+            str(trained_models),
+            "--output",
+            str(report),
+        ]
+    )
+
+    assert exit_code == 0
+    out = capsys.readouterr().out
+    for name in ("rules", "random_forest", "isolation_forest"):
+        assert name in out
+    entries = json.loads(report.read_text(encoding="utf-8"))
+    assert [entry["detector"] for entry in entries] == [
+        "rules",
+        "random_forest",
+        "isolation_forest",
+    ]
+
+
+def test_evaluate_scores_only_the_rules_without_a_model_directory(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    test_file = tmp_path / "test.csv"
+    _write_test_windows(test_file)
+
+    exit_code = cli.main(
+        [
+            "evaluate",
+            str(test_file),
+            "--rules",
+            str(Path(__file__).parents[2] / "configs" / "rules.yaml"),
+        ]
+    )
+
+    assert exit_code == 0
+    out = capsys.readouterr().out
+    assert "rules" in out
+    assert "random_forest" not in out

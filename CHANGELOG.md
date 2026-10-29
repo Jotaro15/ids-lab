@@ -22,3 +22,5 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Reading of labelled window files and a capture-level train/test split with idslab dataset split.
 - Random Forest and Isolation Forest training with checksum-verified model storage, and the idslab train command.
 - Detection with the trained models through idslab predict, and one-line error messages in the CLI.
+- Evaluation of the rules and the models against ground-truth labels with idslab evaluate.
+- Scenario manifests are named after the scenario and its start time, so a second run no longer overwrites the first.
