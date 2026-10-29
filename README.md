@@ -4,25 +4,34 @@ A small network intrusion detection lab. Attacks run between Docker containers, 
 
 ## Why this exists
 
-I wanted a project where I could break things on purpose without breaking anything that matters. A lab that simulates attacks gives me ground truth for free, because I know exactly when each attack started, where it came from and what it was. That makes it possible to measure a detector properly instead of just claiming it works.
+I wanted a project where I could break thiings on purpose without breaking anything that matters/or too important. A lab that simulates attacks gives me ground truth for free, because I know exactly when each attack started, where it came from and what it was. That makes it possible to measure a detector properly.
 
-It is also an excuse to work through the whole chain: packet capture, traffic analysis, feature engineering, classic rule-based detection, and machine learning, with the engineering habits around it (tests, typing, CI, security checks) that a real project needs.
+It is also a project I wanted to create to train myself on: packet capture, traffic analysis, feature engineering, classic rule-based detection, and machine learning, with the engineering habits around it (tests, typing, CI, security checks). 
+
+The project is also heavily inspired by an exercice I had in groups of 3 during my 4th years of engeniering studies. 
+
+### Disclaimer
+Almost all the documentation is AI written. 
+Even tho I like writting documentation, it wasn't the purpose of this project, and I didn't want to spend too much time writting it.
+Also English isn't my first langage, if you read all the documentation I've witten or my comments in the code, you will probably guess. My apologies for that. 
 
 ## Status
 
-The code is complete and has been run on captures recorded in the lab. What is left is tagging the first release.
+The code is complete and has been run on captures recorded in the lab. 
+Based on my previous exercise, I've cut the project in 5 phases. 
 
 - [x] Phase 0: project scaffold, tooling and CI
-- [x] Phase 1: isolated lab, benign traffic, attack scenarios, traffic capture
+- [x] Phase 1: isolated lab, benign traffic, attack scenarios, traffic capture.
 - [x] Phase 2: pcap files to flows to per-source window features
 - [x] Phase 3: rule engine, machine learning models, evaluation
-- [ ] Phase 4: documentation, published results, first release (`v0.1.0`)
+- [ ] Phase 4: documentation, published results, first release (`v0.1.0`).
 
-The [results](#results) cover one attack type so far, and they need to be read with the caveats next to them.
+The [results](#results) cover one attack type so far, and they need to be read with the "caveats" next to them.
+Since it's made for training, the simulation may not be very realistic.
 
 ## How it works
 
-1. A Docker network with no route to the outside world hosts four containers: a **victim** (nginx and an SSH server), a **benign** traffic generator, an **attacker**, and a **sensor** that sees everything the victim sees.
+1. A Docker network with no route to the outside world hosts 4 containers: a **victim** (nginx and an SSH server), a **benign** traffic generator, an **attacker**, and a **sensor** that sees everything the victim sees.
 2. The attacker runs a scenario described in a YAML file. When it finishes, it writes a manifest with the attack type, the attacker's IP address and the start and end times.
 3. The sensor records the victim's traffic into a pcap file.
 4. The `idslab` Python package reads the pcap, groups packets into flows, then groups flows into time windows per source IP (5 seconds by default). Each window gets a handful of features, such as the number of distinct destination ports or the share of connections that never completed. Windows are labelled from the manifests.
@@ -33,13 +42,12 @@ The [results](#results) cover one attack type so far, and they need to be read w
 
 ### Attacks covered
 
-| Attack | Tool in the lab | What the detectors look at |
-| --- | --- | --- |
+| **Attack** | **Tool in the lab** | **What the detectors look at** |
 | Port scan | nmap | Many distinct destination ports from one source in a short window |
 | SYN flood | hping3 | A high rate of SYN packets with few completed handshakes |
 | SSH brute force | hydra | Many short connections to port 22 from one source |
 
-The port scan scenario is ready to run, and it is the only attack recorded and evaluated so far. The SYN flood and SSH brute force scenarios ship with an empty `command`, to be filled in locally. See [configs/scenarios/README.md](configs/scenarios/README.md).
+The port scan scenario is the only attack recorded and evaluated so far. The SYN flood and SSH brute force scenarios ship with an empty `command`, to be filled in locally. See [configs/scenarios/README.md](configs/scenarios/README.md).
 
 ## Requirements
 
@@ -54,7 +62,7 @@ Capturing and attacking happen inside containers. Reading and analysing pcap fil
 git clone https://github.com/OWNER/ids-lab.git
 cd ids-lab
 python -m venv .venv
-source .venv/bin/activate        # on Windows PowerShell: .venv\Scripts\Activate.ps1
+source .venv/bin/activate        # on Windows PowerShell (because that's what I used): .venv\Scripts\Activate.ps1
 pip install -e ".[dev]"
 ```
 
