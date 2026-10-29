@@ -1,5 +1,6 @@
 """Tests for the idslab command-line entry point."""
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -108,3 +109,58 @@ def test_main_writes_window_features_to_a_csv_file(
     assert exit_code == 0
     assert "1 windows" in capsys.readouterr().out
     assert output.read_text(encoding="utf-8").splitlines()[1].startswith("10.0.0.1,100.0,3,3,")
+
+
+def _write_tcp_pcap(path: Path, source: str) -> None:
+    frames = []
+    for index, port in enumerate((22, 80, 443)):
+        frame = Ether() / IP(src=source, dst="10.0.0.2") / TCP(sport=1234 + index, dport=port)
+        frame.time = 100.0 + index
+        frames.append(frame)
+    wrpcap(str(path), frames)
+
+
+def _write_manifest(directory: Path, attacker_ip: str) -> None:
+    directory.mkdir()
+    manifest = {
+        "name": "scan",
+        "attack_type": "port_scan",
+        "target": "victim",
+        "attacker_ip": attacker_ip,
+        "target_ip": "10.0.0.2",
+        "start_time": 99.0,
+        "end_time": 103.0,
+        "exit_code": 0,
+    }
+    (directory / "scan.json").write_text(json.dumps(manifest), encoding="utf-8")
+
+
+def _build_windows(tmp_path: Path, *extra: str) -> list[str]:
+    pcap = tmp_path / "in.pcap"
+    _write_tcp_pcap(pcap, "10.0.0.1")
+    output = tmp_path / "windows.csv"
+    cli.main(["windows", "build", str(pcap), "--output", str(output), *extra])
+    return output.read_text(encoding="utf-8").splitlines()
+
+
+def test_windows_are_labelled_from_the_manifests(tmp_path: Path) -> None:
+    _write_manifest(tmp_path / "manifests", attacker_ip="10.0.0.1")
+
+    lines = _build_windows(tmp_path, "--manifests", str(tmp_path / "manifests"))
+
+    assert lines[0].endswith(",label")
+    assert lines[1].endswith(",port_scan")
+
+
+def test_windows_from_another_source_are_labelled_benign(tmp_path: Path) -> None:
+    _write_manifest(tmp_path / "manifests", attacker_ip="10.0.0.99")
+
+    lines = _build_windows(tmp_path, "--manifests", str(tmp_path / "manifests"))
+
+    assert lines[1].endswith(",benign")
+
+
+def test_windows_have_an_empty_label_without_manifests(tmp_path: Path) -> None:
+    lines = _build_windows(tmp_path)
+
+    assert lines[1].endswith(",")

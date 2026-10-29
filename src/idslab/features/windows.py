@@ -38,6 +38,8 @@ class WindowFeatures:
         total_packets: Packets sent in both directions.
         total_bytes: Bytes sent in both directions.
         mean_flow_duration: Average flow duration, in seconds.
+        label: Ground-truth label ("benign" or an attack type), or None while
+            the window has not been labelled.
     """
 
     src_ip: str
@@ -52,6 +54,7 @@ class WindowFeatures:
     total_packets: int
     total_bytes: int
     mean_flow_duration: float
+    label: str | None = None
 
 
 WINDOW_COLUMNS = [field.name for field in fields(WindowFeatures)]
@@ -115,7 +118,10 @@ def _summarise(src_ip: str, window_start: float, flows: list[Flow]) -> WindowFea
 
 
 def write_windows_csv(windows: Iterable[WindowFeatures], destination: TextIO) -> None:
-    """Write window features as CSV, with a header row and one line per window."""
+    """Write window features as CSV, with a header row and one line per window.
+
+    The `label` column is left empty for windows that have not been labelled.
+    """
     writer = csv.DictWriter(destination, fieldnames=WINDOW_COLUMNS, lineterminator="\n")
     writer.writeheader()
     for window in windows:
