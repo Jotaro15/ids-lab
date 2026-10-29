@@ -148,7 +148,7 @@ def _alert(window: WindowFeatures, rule: Rule) -> Alert:
         src_ip=window.src_ip,
         window_start=window.window_start,
         attack_type=rule.attack_type,
-        rule=rule.name,
+        detector=rule.name,
         evidence={
             condition.feature: float(getattr(window, condition.feature))
             for condition in rule.conditions

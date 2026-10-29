@@ -14,14 +14,15 @@ class Alert:
         src_ip: The source address of the suspicious traffic.
         window_start: Start of the window, in seconds since the epoch.
         attack_type: The kind of attack the detector believes it saw.
-        rule: Name of the rule that fired.
+        detector: What raised the alert: the name of the rule that fired, or of
+            the model that flagged the window.
         evidence: The feature values that made the rule fire.
     """
 
     src_ip: str
     window_start: float
     attack_type: str
-    rule: str
+    detector: str
     evidence: dict[str, float]
 
 

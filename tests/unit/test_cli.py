@@ -1,6 +1,8 @@
 """Tests for the idslab command-line entry point."""
 
 import json
+import random
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -265,3 +267,101 @@ def test_train_saves_both_models_with_their_checksums(
     for name in ("random_forest.joblib", "isolation_forest.joblib"):
         assert (models / name).is_file()
         assert (models / f"{name}.sha256").is_file()
+
+
+@pytest.fixture(scope="module")
+def trained_models(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Directory with both models, trained once for all the tests of this module."""
+    directory = tmp_path_factory.mktemp("trained")
+    rng = random.Random(0)  # noqa: S311  # test data, not cryptography
+    windows = [
+        _synthetic_window("benign", rng.randint(1, 3), rng.randint(2, 8), rng.uniform(0, 0.2), n)
+        for n in range(100)
+    ] + [_synthetic_window("port_scan", 80 + n, 80 + n, 0.95, n) for n in range(15)]
+    train_file = directory / "train.csv"
+    with train_file.open("w", newline="", encoding="utf-8") as destination:
+        write_windows_csv(windows, destination)
+    cli.main(["train", str(train_file), "--output-dir", str(directory / "models")])
+    return directory / "models"
+
+
+def _write_scan_pcap(path: Path) -> None:
+    frames = []
+    for port in range(1, 121):
+        frame = Ether() / IP(src="10.0.0.1", dst="10.0.0.2") / TCP(sport=40000 + port, dport=port)
+        frame.time = 100.0 + port * 0.01
+        frames.append(frame)
+    wrpcap(str(path), frames)
+
+
+@pytest.mark.parametrize("detector", ["random_forest", "isolation_forest"])
+def test_predict_flags_a_scan_with_each_model(
+    tmp_path: Path, trained_models: Path, detector: str
+) -> None:
+    models = trained_models
+    pcap = tmp_path / "scan.pcap"
+    _write_scan_pcap(pcap)
+    output = tmp_path / "alerts.jsonl"
+
+    exit_code = cli.main(
+        [
+            "predict",
+            str(pcap),
+            "--detector",
+            detector,
+            "--model-dir",
+            str(models),
+            "--output",
+            str(output),
+        ]
+    )
+
+    assert exit_code == 0
+    [line] = output.read_text(encoding="utf-8").splitlines()
+    alert = json.loads(line)
+    assert (alert["src_ip"], alert["detector"]) == ("10.0.0.1", detector)
+
+
+def test_predict_refuses_a_model_that_changed_since_training(
+    tmp_path: Path, trained_models: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    models = tmp_path / "models"
+    shutil.copytree(trained_models, models)
+    model_file = models / "random_forest.joblib"
+    model_file.write_bytes(model_file.read_bytes() + b"x")
+    pcap = tmp_path / "scan.pcap"
+    _write_scan_pcap(pcap)
+
+    exit_code = cli.main(
+        [
+            "predict",
+            str(pcap),
+            "--detector",
+            "random_forest",
+            "--model-dir",
+            str(models),
+            "--output",
+            str(tmp_path / "alerts.jsonl"),
+        ]
+    )
+
+    assert exit_code == 1
+    assert "checksum mismatch" in capsys.readouterr().err
+
+
+def test_a_missing_input_file_is_reported_without_a_traceback(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    exit_code = cli.main(
+        [
+            "detect",
+            str(tmp_path / "missing.pcap"),
+            "--rules",
+            str(tmp_path / "rules.yaml"),
+            "--output",
+            str(tmp_path / "alerts.jsonl"),
+        ]
+    )
+
+    assert exit_code == 1
+    assert capsys.readouterr().err.startswith("error: ")

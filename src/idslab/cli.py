@@ -7,9 +7,15 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import TextIO
 
+from idslab.capture import CaptureError, read_packets
 from idslab.capture import capture_packets as run_capture
-from idslab.capture import read_packets
-from idslab.detection import detect, load_rules, write_alerts_jsonl
+from idslab.detection import (
+    detect,
+    detect_with_isolation_forest,
+    detect_with_random_forest,
+    load_rules,
+    write_alerts_jsonl,
+)
 from idslab.features import (
     build_flows,
     build_windows,
@@ -19,15 +25,18 @@ from idslab.features import (
 )
 from idslab.features.flows import DEFAULT_IDLE_TIMEOUT
 from idslab.features.windows import DEFAULT_WINDOW_SIZE, WindowFeatures
+from idslab.lab.guard import TargetOutsideLabError
 from idslab.lab.manifest import load_manifests
-from idslab.lab.runner import DEFAULT_LAB_SUBNET, run_scenario
+from idslab.lab.runner import DEFAULT_LAB_SUBNET, EmptyCommandError, run_scenario
 from idslab.lab.scenario import load_scenario
 from idslab.ml import (
     ISOLATION_FOREST,
     RANDOM_FOREST,
+    ModelIntegrityError,
     label_counts,
     load_captures,
     load_labelled_windows,
+    load_model,
     save_model,
     split_captures,
     train_isolation_forest,
@@ -166,6 +175,38 @@ def _build_parser() -> argparse.ArgumentParser:
         default=0.05,
         help="share of normal windows the Isolation Forest may flag; higher is more sensitive",
     )
+
+    predict_parser = subparsers.add_parser(
+        "predict", help="flag attacks in a pcap file with a trained model"
+    )
+    predict_parser.add_argument("pcap_file", type=Path, help="pcap file to read")
+    predict_parser.add_argument(
+        "--detector",
+        choices=[RANDOM_FOREST, ISOLATION_FOREST],
+        required=True,
+        help="which trained model to use",
+    )
+    predict_parser.add_argument(
+        "--model-dir",
+        type=Path,
+        default=Path("models"),
+        help="directory the models were saved in by idslab train",
+    )
+    predict_parser.add_argument(
+        "--output", type=Path, required=True, help="JSON Lines file to write the alerts to"
+    )
+    predict_parser.add_argument(
+        "--window-size",
+        type=float,
+        default=DEFAULT_WINDOW_SIZE,
+        help="length of a time window, in seconds",
+    )
+    predict_parser.add_argument(
+        "--idle-timeout",
+        type=float,
+        default=DEFAULT_IDLE_TIMEOUT,
+        help="seconds of silence after which a flow is considered over",
+    )
     return parser
 
 
@@ -189,11 +230,29 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     return _build_parser().parse_args(argv)
 
 
+# Failures a user can cause and fix: reported in one line instead of a traceback.
+_USER_ERRORS = (
+    CaptureError,
+    EmptyCommandError,
+    ModelIntegrityError,
+    OSError,
+    TargetOutsideLabError,
+    ValueError,
+)
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Entry point installed as the `idslab` console script."""
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     args = parse_args(argv)
+    try:
+        return _run(args)
+    except _USER_ERRORS as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
 
+
+def _run(args: argparse.Namespace) -> int:
     if args.command == "scenario" and args.scenario_command == "run":
         scenario = load_scenario(args.scenario_file)
         manifest_path = run_scenario(scenario, args.lab_subnet, args.output)
@@ -243,6 +302,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         }
         for kind, model in trained.items():
             print(f"wrote {save_model(model, kind, args.output_dir / f'{kind}.joblib')}")
+        return 0
+
+    if args.command == "predict":
+        model = load_model(args.model_dir / f"{args.detector}.joblib", args.detector)
+        windows = _windows_from_pcap(args)
+        detect_with_model = (
+            detect_with_random_forest
+            if args.detector == RANDOM_FOREST
+            else detect_with_isolation_forest
+        )
+        flagged = detect_with_model(windows, model)
+        _write_text(args.output, lambda out: write_alerts_jsonl(flagged, out))
+        print(f"wrote {len(flagged)} alerts to {args.output}")
         return 0
 
     return 1
