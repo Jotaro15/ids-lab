@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "idslab"
-version = "0.0.1"
+version = "0.1.0"
 description = "Network intrusion detection lab: simulated attacks in Docker, traffic capture with Scapy, rule-based and machine-learning detection."
 readme = "README.md"
 requires-python = ">=3.11"
