@@ -1,0 +1,35 @@
+# Detection rules for the rule engine.
+#
+# A rule fires when every condition in `all_of` holds for a window. Rules are
+# tried in order and the first match wins, so a window raises at most one alert.
+# The SYN flood rule comes first and limits itself to a few ports, because a
+# fast scan of hundreds of ports also sends hundreds of SYN packets.
+# `feature` is one of the numeric columns of the window features CSV; each
+# condition needs `at_least`, `at_most`, or both.
+#
+# These are starting values chosen from how each tool behaves, not from
+# measurements. The evaluation step reports precision, recall and false alarms
+# per hour, and is where they get tuned.
+
+rules:
+  - name: syn_flood
+    attack_type: syn_flood
+    description: A burst of connection attempts on very few ports that almost never complete.
+    all_of:
+      - { feature: syn_packets, at_least: 100 }
+      - { feature: distinct_dst_ports, at_most: 3 }
+      - { feature: incomplete_ratio, at_least: 0.9 }
+
+  - name: port_scan
+    attack_type: port_scan
+    description: One source probing many different ports, most of them unanswered.
+    all_of:
+      - { feature: distinct_dst_ports, at_least: 15 }
+      - { feature: incomplete_ratio, at_least: 0.5 }
+
+  - name: ssh_brute_force
+    attack_type: ssh_brute_force
+    description: Many short connections to a single port, most of them completed.
+    all_of:
+      - { feature: max_flows_to_one_port, at_least: 15 }
+      - { feature: incomplete_ratio, at_most: 0.5 }

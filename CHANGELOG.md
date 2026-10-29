@@ -18,3 +18,4 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Pcap reader, flow builder and the idslab flows build command.
 - Per-source window features and the idslab windows build command.
 - Ground-truth labelling of windows from scenario manifests, and the attacker address in the manifest.
+- Threshold-based rule engine and the idslab detect command.
