@@ -1,6 +1,7 @@
-"""Feature extraction: from packets to flows, and from flows to time windows."""
+"""Feature extraction: from packets to flows, from flows to labelled time windows."""
 
 from idslab.features.flows import FLOW_COLUMNS, build_flows, write_flows_csv
+from idslab.features.labeling import BENIGN_LABEL, label_windows
 from idslab.features.windows import (
     WINDOW_COLUMNS,
     WindowFeatures,
@@ -9,11 +10,13 @@ from idslab.features.windows import (
 )
 
 __all__ = [
+    "BENIGN_LABEL",
     "FLOW_COLUMNS",
     "WINDOW_COLUMNS",
     "WindowFeatures",
     "build_flows",
     "build_windows",
+    "label_windows",
     "write_flows_csv",
     "write_windows_csv",
 ]

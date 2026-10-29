@@ -4,7 +4,12 @@ import io
 
 import pytest
 
-from idslab.features.windows import WINDOW_COLUMNS, build_windows, write_windows_csv
+from idslab.features.windows import (
+    LABEL_COLUMN,
+    WINDOW_COLUMNS,
+    build_windows,
+    write_windows_csv,
+)
 from idslab.models import Flow
 
 ATTACKER = "10.0.0.9"
@@ -145,3 +150,22 @@ def test_windows_are_written_as_csv_with_a_header() -> None:
     assert lines[0].split(",") == WINDOW_COLUMNS
     assert lines[1].startswith(f"{ATTACKER},0.0,1,1,1,1,")
     assert len(lines) == 2
+
+
+def test_labels_are_written_in_an_extra_column() -> None:
+    windows = build_windows([_flow(1.0), _flow(11.0)])
+    destination = io.StringIO()
+
+    write_windows_csv(windows, destination, labels=["benign", "port_scan"])
+
+    lines = destination.getvalue().splitlines()
+    assert lines[0].split(",") == [*WINDOW_COLUMNS, LABEL_COLUMN]
+    assert lines[1].endswith(",benign")
+    assert lines[2].endswith(",port_scan")
+
+
+def test_a_label_count_that_does_not_match_the_windows_is_rejected() -> None:
+    windows = build_windows([_flow(1.0), _flow(11.0)])
+
+    with pytest.raises(ValueError, match="expected 2 labels, got 1"):
+        write_windows_csv(windows, io.StringIO(), labels=["benign"])

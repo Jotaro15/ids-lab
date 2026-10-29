@@ -53,6 +53,7 @@ def test_run_scenario_checks_the_target_before_running_anything(
 
 def test_run_scenario_writes_a_manifest(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setattr(runner, "check_target", lambda *_args: ipaddress.ip_address("172.30.0.10"))
+    monkeypatch.setattr(runner, "_local_address_towards", lambda _target: "172.30.0.20")
 
     class _Result:
         returncode = 0
@@ -66,6 +67,7 @@ def test_run_scenario_writes_a_manifest(monkeypatch: pytest.MonkeyPatch, tmp_pat
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert manifest["attack_type"] == "port_scan"
     assert manifest["target_ip"] == "172.30.0.10"
+    assert manifest["attacker_ip"] == "172.30.0.20"
     assert manifest["exit_code"] == 0
     assert manifest["start_time"] <= manifest["end_time"]
 
@@ -74,6 +76,7 @@ def test_run_scenario_records_a_non_zero_exit_code(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     monkeypatch.setattr(runner, "check_target", lambda *_args: ipaddress.ip_address("172.30.0.10"))
+    monkeypatch.setattr(runner, "_local_address_towards", lambda _target: "172.30.0.20")
 
     class _Result:
         returncode = 1
@@ -84,3 +87,7 @@ def test_run_scenario_records_a_non_zero_exit_code(
     manifest_path = runner.run_scenario(_scenario(), SUBNET, tmp_path)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert manifest["exit_code"] == 1
+
+
+def test_local_address_towards_returns_the_address_used_to_reach_the_target() -> None:
+    assert runner._local_address_towards(ipaddress.ip_address("127.0.0.1")) == "127.0.0.1"

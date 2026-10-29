@@ -1,16 +1,21 @@
 """Runs a scenario: validates its target, executes it, and records a manifest.
 
 The manifest is what later turns raw capture time into labelled data: it says
-which attack type ran, against which address, and when it started and ended.
+which attack type ran, from which address, against which address, and when it
+started and ended.
 """
 
+import ipaddress
 import json
 import logging
+import socket
 import subprocess  # nosec B404  # only ever called with a reviewed command, never a shell
 import time
+from dataclasses import asdict
 from pathlib import Path
 
 from idslab.lab.guard import check_target
+from idslab.lab.manifest import Manifest
 from idslab.lab.scenario import Scenario
 
 logger = logging.getLogger("runner")
@@ -20,6 +25,17 @@ DEFAULT_LAB_SUBNET = "172.30.0.0/24"
 
 class EmptyCommandError(Exception):
     """Raised when a scenario has no command configured yet."""
+
+
+def _local_address_towards(target_ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> str:
+    """Return the local address this host uses to reach `target_ip`.
+
+    Connecting a UDP socket only selects a route; it sends no packet.
+    """
+    family = socket.AF_INET6 if target_ip.version == 6 else socket.AF_INET
+    with socket.socket(family, socket.SOCK_DGRAM) as sock:
+        sock.connect((str(target_ip), 9))
+        return str(sock.getsockname()[0])
 
 
 def run_scenario(scenario: Scenario, lab_subnet: str, output_dir: Path) -> Path:
@@ -44,6 +60,7 @@ def run_scenario(scenario: Scenario, lab_subnet: str, output_dir: Path) -> Path:
         )
 
     target_ip = check_target(scenario.target, lab_subnet)
+    attacker_ip = _local_address_towards(target_ip)
     logger.info("running %s against %s (%s)", scenario.name, scenario.target, target_ip)
 
     started_at = time.time()
@@ -61,17 +78,18 @@ def run_scenario(scenario: Scenario, lab_subnet: str, output_dir: Path) -> Path:
             "%s exited with code %d: %s", scenario.name, result.returncode, result.stderr.strip()
         )
 
-    manifest = {
-        "name": scenario.name,
-        "attack_type": scenario.attack_type,
-        "target": scenario.target,
-        "target_ip": str(target_ip),
-        "start_time": started_at,
-        "end_time": ended_at,
-        "exit_code": result.returncode,
-    }
+    manifest = Manifest(
+        name=scenario.name,
+        attack_type=scenario.attack_type,
+        target=scenario.target,
+        attacker_ip=attacker_ip,
+        target_ip=str(target_ip),
+        start_time=started_at,
+        end_time=ended_at,
+        exit_code=result.returncode,
+    )
     output_dir.mkdir(parents=True, exist_ok=True)
     manifest_path = output_dir / f"{scenario.name}.json"
-    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    manifest_path.write_text(json.dumps(asdict(manifest), indent=2) + "\n", encoding="utf-8")
     logger.info("wrote %s", manifest_path)
     return manifest_path

@@ -3,15 +3,22 @@
 import argparse
 import logging
 import sys
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import TextIO, TypeVar
+from typing import TextIO
 
 from idslab.capture import capture_packets as run_capture
 from idslab.capture import read_packets
-from idslab.features import build_flows, build_windows, write_flows_csv, write_windows_csv
+from idslab.features import (
+    build_flows,
+    build_windows,
+    label_windows,
+    write_flows_csv,
+    write_windows_csv,
+)
 from idslab.features.flows import DEFAULT_IDLE_TIMEOUT
 from idslab.features.windows import DEFAULT_WINDOW_SIZE
+from idslab.lab.manifest import load_manifests
 from idslab.lab.runner import DEFAULT_LAB_SUBNET, run_scenario
 from idslab.lab.scenario import load_scenario
 
@@ -82,6 +89,11 @@ def _build_parser() -> argparse.ArgumentParser:
         help="length of a time window, in seconds",
     )
     windows_build_parser.add_argument(
+        "--manifests",
+        type=Path,
+        help="directory of scenario manifests; when given, windows get a ground-truth label",
+    )
+    windows_build_parser.add_argument(
         "--idle-timeout",
         type=float,
         default=DEFAULT_IDLE_TIMEOUT,
@@ -90,15 +102,10 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-_Row = TypeVar("_Row")
-
-
-def _write_csv(
-    path: Path, rows: Iterable[_Row], writer: Callable[[Iterable[_Row], TextIO], None]
-) -> None:
+def _write_csv(path: Path, write: Callable[[TextIO], None]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="", encoding="utf-8") as destination:
-        writer(rows, destination)
+        write(destination)
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -124,14 +131,16 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "flows" and args.flows_command == "build":
         flows = build_flows(read_packets(args.pcap_file), args.idle_timeout)
-        _write_csv(args.output, flows, write_flows_csv)
+        _write_csv(args.output, lambda out: write_flows_csv(flows, out))
         print(f"wrote {len(flows)} flows to {args.output}")
         return 0
 
     if args.command == "windows" and args.windows_command == "build":
         flows = build_flows(read_packets(args.pcap_file), args.idle_timeout)
         windows = build_windows(flows, args.window_size)
-        _write_csv(args.output, windows, write_windows_csv)
+        if args.manifests is not None:
+            windows = label_windows(windows, load_manifests(args.manifests), args.window_size)
+        _write_csv(args.output, lambda out: write_windows_csv(windows, out))
         print(f"wrote {len(windows)} windows to {args.output}")
         return 0
 
