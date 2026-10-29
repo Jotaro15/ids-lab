@@ -11,6 +11,7 @@ import math
 from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import asdict, dataclass, fields
+from pathlib import Path
 from typing import TextIO
 
 from idslab.models import Flow
@@ -126,3 +127,38 @@ def write_windows_csv(windows: Iterable[WindowFeatures], destination: TextIO) ->
     writer.writeheader()
     for window in windows:
         writer.writerow(asdict(window))
+
+
+def read_windows_csv(path: Path) -> list[WindowFeatures]:
+    """Read a CSV file written by `write_windows_csv`.
+
+    Raises:
+        ValueError: If the header does not match the window columns, or a row
+            has a value that cannot be parsed.
+    """
+    with path.open(newline="", encoding="utf-8") as source:
+        reader = csv.DictReader(source)
+        if reader.fieldnames != WINDOW_COLUMNS:
+            raise ValueError(f"{path}: unexpected columns {reader.fieldnames}")
+        try:
+            return [_window_from_row(row) for row in reader]
+        except ValueError as error:
+            raise ValueError(f"{path}: invalid row: {error}") from error
+
+
+def _window_from_row(row: dict[str, str]) -> WindowFeatures:
+    return WindowFeatures(
+        src_ip=row["src_ip"],
+        window_start=float(row["window_start"]),
+        flow_count=int(row["flow_count"]),
+        distinct_dst_ports=int(row["distinct_dst_ports"]),
+        distinct_dst_ips=int(row["distinct_dst_ips"]),
+        max_flows_to_one_port=int(row["max_flows_to_one_port"]),
+        syn_packets=int(row["syn_packets"]),
+        rst_packets=int(row["rst_packets"]),
+        incomplete_ratio=float(row["incomplete_ratio"]),
+        total_packets=int(row["total_packets"]),
+        total_bytes=int(row["total_bytes"]),
+        mean_flow_duration=float(row["mean_flow_duration"]),
+        label=row["label"] or None,
+    )

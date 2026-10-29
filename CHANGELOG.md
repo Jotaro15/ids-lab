@@ -19,3 +19,4 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Per-source window features and the idslab windows build command.
 - Ground-truth labelling of windows from scenario manifests, and the attacker address in the manifest.
 - Threshold-based rule engine and the idslab detect command.
+- Reading of labelled window files and a capture-level train/test split with idslab dataset split.

@@ -186,3 +186,41 @@ def test_detect_writes_one_alert_per_suspicious_window(
     [line] = output.read_text(encoding="utf-8").splitlines()
     alert = json.loads(line)
     assert (alert["src_ip"], alert["attack_type"]) == ("10.0.0.1", "port_scan")
+
+
+def test_dataset_split_writes_train_and_test_files(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    for name in ("a", "b", "c"):
+        _write_tcp_pcap(tmp_path / f"{name}.pcap", "10.0.0.1")
+        cli.main(
+            [
+                "windows",
+                "build",
+                str(tmp_path / f"{name}.pcap"),
+                "--output",
+                str(tmp_path / f"{name}.csv"),
+                "--manifests",
+                str(tmp_path),
+            ]
+        )
+    output_dir = tmp_path / "dataset"
+
+    exit_code = cli.main(
+        [
+            "dataset",
+            "split",
+            *(str(tmp_path / f"{name}.csv") for name in ("a", "b", "c")),
+            "--output-dir",
+            str(output_dir),
+            "--test-fraction",
+            "0.34",
+        ]
+    )
+
+    assert exit_code == 0
+    out = capsys.readouterr().out
+    assert "train: 2 windows {'benign': 2}" in out
+    assert "test: 1 windows {'benign': 1}" in out
+    assert (output_dir / "train.csv").is_file()
+    assert (output_dir / "test.csv").is_file()

@@ -22,6 +22,7 @@ from idslab.features.windows import DEFAULT_WINDOW_SIZE, WindowFeatures
 from idslab.lab.manifest import load_manifests
 from idslab.lab.runner import DEFAULT_LAB_SUBNET, run_scenario
 from idslab.lab.scenario import load_scenario
+from idslab.ml import label_counts, load_captures, split_captures
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -119,6 +120,25 @@ def _build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_IDLE_TIMEOUT,
         help="seconds of silence after which a flow is considered over",
     )
+
+    dataset_parser = subparsers.add_parser("dataset", help="prepare windows for machine learning")
+    dataset_subparsers = dataset_parser.add_subparsers(dest="dataset_command", required=True)
+
+    dataset_split_parser = dataset_subparsers.add_parser(
+        "split", help="divide labelled window CSV files into a training and a test set"
+    )
+    dataset_split_parser.add_argument(
+        "windows_files", type=Path, nargs="+", help="labelled window CSV files, one per capture"
+    )
+    dataset_split_parser.add_argument(
+        "--output-dir", type=Path, required=True, help="directory for train.csv and test.csv"
+    )
+    dataset_split_parser.add_argument(
+        "--test-fraction", type=float, default=0.3, help="share of captures held out for testing"
+    )
+    dataset_split_parser.add_argument(
+        "--seed", type=int, default=42, help="seed of the shuffle that picks the test captures"
+    )
     return parser
 
 
@@ -126,6 +146,10 @@ def _write_text(path: Path, write: Callable[[TextIO], None]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="", encoding="utf-8") as destination:
         write(destination)
+
+
+def _write_windows(path: Path, windows: Sequence[WindowFeatures]) -> None:
+    _write_text(path, lambda out: write_windows_csv(windows, out))
 
 
 def _windows_from_pcap(args: argparse.Namespace) -> list[WindowFeatures]:
@@ -173,6 +197,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         alerts = detect(_windows_from_pcap(args), rules)
         _write_text(args.output, lambda out: write_alerts_jsonl(alerts, out))
         print(f"wrote {len(alerts)} alerts to {args.output}")
+        return 0
+
+    if args.command == "dataset" and args.dataset_command == "split":
+        split = split_captures(load_captures(args.windows_files), args.test_fraction, args.seed)
+        for name, windows in (("train", split.train_windows), ("test", split.test_windows)):
+            _write_windows(args.output_dir / f"{name}.csv", windows)
+            counts = dict(sorted(label_counts(windows).items()))
+            print(f"{name}: {len(windows)} windows {counts}")
+        print(f"test captures: {', '.join(sorted(split.test))}")
         return 0
 
     return 1
