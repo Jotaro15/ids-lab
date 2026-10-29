@@ -3,13 +3,15 @@
 import argparse
 import logging
 import sys
-from collections.abc import Sequence
+from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
+from typing import TextIO, TypeVar
 
 from idslab.capture import capture_packets as run_capture
 from idslab.capture import read_packets
-from idslab.features import build_flows, write_flows_csv
+from idslab.features import build_flows, build_windows, write_flows_csv, write_windows_csv
 from idslab.features.flows import DEFAULT_IDLE_TIMEOUT
+from idslab.features.windows import DEFAULT_WINDOW_SIZE
 from idslab.lab.runner import DEFAULT_LAB_SUBNET, run_scenario
 from idslab.lab.scenario import load_scenario
 
@@ -62,7 +64,41 @@ def _build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_IDLE_TIMEOUT,
         help="seconds of silence after which a flow is considered over",
     )
+
+    windows_parser = subparsers.add_parser("windows", help="compute per-source window features")
+    windows_subparsers = windows_parser.add_subparsers(dest="windows_command", required=True)
+
+    windows_build_parser = windows_subparsers.add_parser(
+        "build", help="turn a pcap file into per-source window features, written as CSV"
+    )
+    windows_build_parser.add_argument("pcap_file", type=Path, help="pcap file to read")
+    windows_build_parser.add_argument(
+        "--output", type=Path, required=True, help="CSV file to write"
+    )
+    windows_build_parser.add_argument(
+        "--window-size",
+        type=float,
+        default=DEFAULT_WINDOW_SIZE,
+        help="length of a time window, in seconds",
+    )
+    windows_build_parser.add_argument(
+        "--idle-timeout",
+        type=float,
+        default=DEFAULT_IDLE_TIMEOUT,
+        help="seconds of silence after which a flow is considered over",
+    )
     return parser
+
+
+_Row = TypeVar("_Row")
+
+
+def _write_csv(
+    path: Path, rows: Iterable[_Row], writer: Callable[[Iterable[_Row], TextIO], None]
+) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", newline="", encoding="utf-8") as destination:
+        writer(rows, destination)
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -88,10 +124,15 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "flows" and args.flows_command == "build":
         flows = build_flows(read_packets(args.pcap_file), args.idle_timeout)
-        args.output.parent.mkdir(parents=True, exist_ok=True)
-        with args.output.open("w", newline="", encoding="utf-8") as destination:
-            write_flows_csv(flows, destination)
+        _write_csv(args.output, flows, write_flows_csv)
         print(f"wrote {len(flows)} flows to {args.output}")
+        return 0
+
+    if args.command == "windows" and args.windows_command == "build":
+        flows = build_flows(read_packets(args.pcap_file), args.idle_timeout)
+        windows = build_windows(flows, args.window_size)
+        _write_csv(args.output, windows, write_windows_csv)
+        print(f"wrote {len(windows)} windows to {args.output}")
         return 0
 
     return 1

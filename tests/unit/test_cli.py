@@ -89,3 +89,22 @@ def test_main_writes_flows_to_a_csv_file(
     assert exit_code == 0
     assert "1 flows" in capsys.readouterr().out
     assert output.read_text(encoding="utf-8").splitlines()[0].startswith("src_ip,")
+
+
+def test_main_writes_window_features_to_a_csv_file(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    pcap = tmp_path / "in.pcap"
+    frames = []
+    for index, port in enumerate((22, 80, 443)):
+        frame = Ether() / IP(src="10.0.0.1", dst="10.0.0.2") / TCP(sport=1234 + index, dport=port)
+        frame.time = 100.0 + index
+        frames.append(frame)
+    wrpcap(str(pcap), frames)
+    output = tmp_path / "windows.csv"
+
+    exit_code = cli.main(["windows", "build", str(pcap), "--output", str(output)])
+
+    assert exit_code == 0
+    assert "1 windows" in capsys.readouterr().out
+    assert output.read_text(encoding="utf-8").splitlines()[1].startswith("10.0.0.1,100.0,3,3,")
