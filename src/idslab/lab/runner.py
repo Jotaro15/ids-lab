@@ -12,6 +12,7 @@ import socket
 import subprocess  # nosec B404  # only ever called with a reviewed command, never a shell
 import time
 from dataclasses import asdict
+from datetime import UTC, datetime
 from pathlib import Path
 
 from idslab.lab.guard import check_target
@@ -44,7 +45,8 @@ def run_scenario(scenario: Scenario, lab_subnet: str, output_dir: Path) -> Path:
     Args:
         scenario: The scenario to run.
         lab_subnet: The lab network, in CIDR notation.
-        output_dir: Directory the manifest file is written into.
+        output_dir: Directory the manifest file is written into. The file is
+            named after the scenario and its start time.
 
     Returns:
         Path to the manifest file written.
@@ -89,7 +91,10 @@ def run_scenario(scenario: Scenario, lab_subnet: str, output_dir: Path) -> Path:
         exit_code=result.returncode,
     )
     output_dir.mkdir(parents=True, exist_ok=True)
-    manifest_path = output_dir / f"{scenario.name}.json"
+    # The start time in the name keeps a second run of the same scenario from
+    # overwriting the manifest of the first one.
+    stamp = datetime.fromtimestamp(started_at, UTC).strftime("%Y%m%dT%H%M%SZ")
+    manifest_path = output_dir / f"{scenario.name}_{stamp}.json"
     manifest_path.write_text(json.dumps(asdict(manifest), indent=2) + "\n", encoding="utf-8")
     logger.info("wrote %s", manifest_path)
     return manifest_path
