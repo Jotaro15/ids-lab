@@ -11,9 +11,9 @@ and end time next to the capture.
 `syn_flood.yaml` and `ssh_brute_force.yaml` ship with an empty `command`.
 Fill it in locally before running them, using the tool's own documentation
 (`hping3 --help`, `hydra -h`). These two are left for you to configure on
-purpose; see `CONTRIBUTING.md` for why. Keep `data/` untouched by Git either
-way: a filled-in scenario file still only configures what already runs
-inside the isolated lab network, but there is no reason to track it.
+purpose, as explained in `CONTRIBUTING.md`. Do not commit a filled-in
+scenario file: it only configures what runs inside the isolated lab network,
+but there is no reason to track it.
 
 To add a scenario of your own, copy an existing file and change its fields.
 `attack_type` is what ends up in the trained model's labels, so keep it
