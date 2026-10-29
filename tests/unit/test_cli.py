@@ -10,6 +10,7 @@ from scapy.layers.l2 import Ether
 from scapy.utils import wrpcap
 
 from idslab import cli
+from idslab.features.windows import WindowFeatures, write_windows_csv
 
 
 def test_parse_args_reads_a_scenario_run_command() -> None:
@@ -224,3 +225,43 @@ def test_dataset_split_writes_train_and_test_files(
     assert "test: 1 windows {'benign': 1}" in out
     assert (output_dir / "train.csv").is_file()
     assert (output_dir / "test.csv").is_file()
+
+
+def _synthetic_window(
+    label: str, ports: int, flows: int, ratio: float, step: int
+) -> WindowFeatures:
+    return WindowFeatures(
+        src_ip="10.0.0.1",
+        window_start=100.0 + 5 * step,
+        flow_count=flows,
+        distinct_dst_ports=ports,
+        distinct_dst_ips=1,
+        max_flows_to_one_port=1,
+        syn_packets=flows,
+        rst_packets=0,
+        incomplete_ratio=ratio,
+        total_packets=flows * 3,
+        total_bytes=flows * 180,
+        mean_flow_duration=0.2,
+        label=label,
+    )
+
+
+def test_train_saves_both_models_with_their_checksums(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    windows = [_synthetic_window("benign", 1 + n % 2, 3 + n % 3, 0.1, n) for n in range(20)] + [
+        _synthetic_window("port_scan", 80 + n, 80 + n, 0.95, n) for n in range(10)
+    ]
+    train_file = tmp_path / "train.csv"
+    with train_file.open("w", newline="", encoding="utf-8") as destination:
+        write_windows_csv(windows, destination)
+    models = tmp_path / "models"
+
+    exit_code = cli.main(["train", str(train_file), "--output-dir", str(models)])
+
+    assert exit_code == 0
+    assert "random_forest.joblib" in capsys.readouterr().out
+    for name in ("random_forest.joblib", "isolation_forest.joblib"):
+        assert (models / name).is_file()
+        assert (models / f"{name}.sha256").is_file()

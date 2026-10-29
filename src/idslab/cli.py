@@ -22,7 +22,17 @@ from idslab.features.windows import DEFAULT_WINDOW_SIZE, WindowFeatures
 from idslab.lab.manifest import load_manifests
 from idslab.lab.runner import DEFAULT_LAB_SUBNET, run_scenario
 from idslab.lab.scenario import load_scenario
-from idslab.ml import label_counts, load_captures, split_captures
+from idslab.ml import (
+    ISOLATION_FOREST,
+    RANDOM_FOREST,
+    label_counts,
+    load_captures,
+    load_labelled_windows,
+    save_model,
+    split_captures,
+    train_isolation_forest,
+    train_random_forest,
+)
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -139,6 +149,23 @@ def _build_parser() -> argparse.ArgumentParser:
     dataset_split_parser.add_argument(
         "--seed", type=int, default=42, help="seed of the shuffle that picks the test captures"
     )
+
+    train_parser = subparsers.add_parser(
+        "train", help="train the Random Forest and the Isolation Forest"
+    )
+    train_parser.add_argument(
+        "train_file", type=Path, help="labelled window CSV file to train on, e.g. train.csv"
+    )
+    train_parser.add_argument(
+        "--output-dir", type=Path, required=True, help="directory the models are saved in"
+    )
+    train_parser.add_argument("--seed", type=int, default=42, help="seed for reproducible training")
+    train_parser.add_argument(
+        "--contamination",
+        type=float,
+        default=0.05,
+        help="share of normal windows the Isolation Forest may flag; higher is more sensitive",
+    )
     return parser
 
 
@@ -206,6 +233,16 @@ def main(argv: Sequence[str] | None = None) -> int:
             counts = dict(sorted(label_counts(windows).items()))
             print(f"{name}: {len(windows)} windows {counts}")
         print(f"test captures: {', '.join(sorted(split.test))}")
+        return 0
+
+    if args.command == "train":
+        windows = load_labelled_windows(args.train_file)
+        trained = {
+            RANDOM_FOREST: train_random_forest(windows, args.seed),
+            ISOLATION_FOREST: train_isolation_forest(windows, args.seed, args.contamination),
+        }
+        for kind, model in trained.items():
+            print(f"wrote {save_model(model, kind, args.output_dir / f'{kind}.joblib')}")
         return 0
 
     return 1

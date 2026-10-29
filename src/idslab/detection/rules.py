@@ -12,11 +12,9 @@ from typing import Any
 import yaml
 
 from idslab.detection.alerts import Alert
-from idslab.features.windows import WINDOW_COLUMNS, WindowFeatures
+from idslab.features.windows import FEATURE_COLUMNS, WindowFeatures
 
-# Columns that identify a window or label it, rather than describe its traffic.
-_NOT_FEATURES = {"src_ip", "window_start", "label"}
-FEATURE_NAMES = frozenset(WINDOW_COLUMNS) - _NOT_FEATURES
+FEATURE_NAMES = frozenset(FEATURE_COLUMNS)
 
 _RULE_KEYS = {"name", "attack_type", "description", "all_of"}
 _CONDITION_KEYS = {"feature", "at_least", "at_most"}

@@ -60,6 +60,10 @@ class WindowFeatures:
 
 WINDOW_COLUMNS = [field.name for field in fields(WindowFeatures)]
 
+# Columns that identify or label a window, as opposed to describing its traffic.
+_NON_FEATURE_COLUMNS = {"src_ip", "window_start", "label"}
+FEATURE_COLUMNS = [name for name in WINDOW_COLUMNS if name not in _NON_FEATURE_COLUMNS]
+
 
 def build_windows(
     flows: Iterable[Flow], window_size: float = DEFAULT_WINDOW_SIZE
