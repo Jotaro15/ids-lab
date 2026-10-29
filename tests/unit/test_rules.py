@@ -129,7 +129,7 @@ def test_windows_matching_a_rule_raise_an_alert_with_evidence() -> None:
             src_ip="172.30.0.20",
             window_start=100.0,
             attack_type="port_scan",
-            rule="scan",
+            detector="scan",
             evidence={"distinct_dst_ports": 30.0},
         )
     ]
@@ -143,7 +143,7 @@ def test_the_first_matching_rule_wins() -> None:
 
     [alert] = detect([_window(syn_packets=500, distinct_dst_ports=30)], rules)
 
-    assert alert.rule == "flood"
+    assert alert.detector == "flood"
 
 
 def test_no_rules_or_no_windows_raise_no_alerts() -> None:
@@ -163,7 +163,7 @@ def test_alerts_are_written_as_json_lines() -> None:
         "src_ip": "172.30.0.20",
         "window_start": 100.0,
         "attack_type": "port_scan",
-        "rule": "scan",
+        "detector": "scan",
         "evidence": {"distinct_dst_ports": 30.0},
     }
 
