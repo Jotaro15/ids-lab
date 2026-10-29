@@ -4,10 +4,10 @@ This is a personal project, but it is run the way a team project would be, and t
 
 ## Setting up
 
-You need Python 3.11 or newer. Docker is only needed for the lab itself, which arrives in a later release.
+You need Python 3.11 or newer. Docker is only needed to run the lab itself: the code and its unit tests run without it.
 
 ```bash
-git clone https://github.com/Azoor/ids-lab.git
+git clone https://github.com/OWNER/ids-lab.git
 cd ids-lab
 python -m venv .venv
 source .venv/bin/activate        # on Windows PowerShell: .venv\Scripts\Activate.ps1
@@ -56,15 +56,20 @@ CI runs the same checks on Python 3.11 and 3.12, plus `bandit`, `pip-audit` and 
 - The code, comments, documentation and commit messages are in English.
 - Public functions and classes have type hints and a short Google-style docstring. `mypy` runs in strict mode.
 - Comments explain why something is done, not what the line does.
-- New behaviour comes with tests. Tests that need Docker are marked `integration` and are skipped by default.
+- New behaviour comes with tests. Tests that need Docker are marked `integration` and are skipped by default; run them with `pytest -m integration --no-cov`.
 - No dead code, no commented-out code, no unused dependencies. If something is not used, it is removed.
 - Dependencies are added to `pyproject.toml` with a reason in the pull request description.
 
 ## Safety rules for a project that generates attacks
 
+- The scenario commands for the SYN flood and the SSH brute force ship empty on purpose. Anyone who wants to run them fills them in locally, for their own isolated lab, and does not commit the result.
 - Scenarios may only target addresses inside the lab network. Do not weaken or bypass the target check.
 - Do not commit captures, trained models, credentials or tokens. `data/` and `models/` are ignored on purpose.
 - Do not mount the Docker socket into a container or add Linux capabilities without a documented reason.
+
+## Working on the lab containers
+
+`docker compose run` does not rebuild an image that already exists, so a change to the Python code is not picked up by the `sensor` or `attacker` containers until the image is rebuilt. Pass `--build` to the `run` command, or run `docker compose build <service>`. The integration tests do the first.
 
 ## Reporting a security problem
 

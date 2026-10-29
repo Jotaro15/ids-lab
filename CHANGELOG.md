@@ -24,3 +24,4 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Detection with the trained models through idslab predict, and one-line error messages in the CLI.
 - Evaluation of the rules and the models against ground-truth labels with idslab evaluate.
 - Scenario manifests are named after the scenario and its start time, so a second run no longer overwrites the first.
+- README with the full command sequence, pipeline reference in docs/pipeline.md, and a note on rebuilding lab images in CONTRIBUTING.md.
