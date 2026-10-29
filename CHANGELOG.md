@@ -16,3 +16,4 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Attack scenario framework: target guard, scenario loader, manifest writer, and the idslab scenario run command.
 - Sensor container and the idslab capture run command, using tcpdump to write pcap files.
 - Pcap reader, flow builder and the idslab flows build command.
+- Per-source window features and the idslab windows build command.
