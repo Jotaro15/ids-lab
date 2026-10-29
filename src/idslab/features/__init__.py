@@ -6,6 +6,7 @@ from idslab.features.windows import (
     WINDOW_COLUMNS,
     WindowFeatures,
     build_windows,
+    read_windows_csv,
     write_windows_csv,
 )
 
@@ -17,6 +18,7 @@ __all__ = [
     "build_flows",
     "build_windows",
     "label_windows",
+    "read_windows_csv",
     "write_flows_csv",
     "write_windows_csv",
 ]
