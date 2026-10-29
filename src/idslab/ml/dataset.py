@@ -41,23 +41,32 @@ class Split:
         return [window for name in sorted(self.test) for window in self.test[name]]
 
 
+def load_labelled_windows(path: Path) -> list[WindowFeatures]:
+    """Load a window CSV file in which every window has a label.
+
+    Raises:
+        ValueError: If a window has no label, which means the CSV was built
+            without `--manifests`.
+    """
+    windows = read_windows_csv(path)
+    if any(window.label is None for window in windows):
+        raise ValueError(f"{path}: unlabelled windows; build it with --manifests")
+    return windows
+
+
 def load_captures(paths: Sequence[Path]) -> dict[str, list[WindowFeatures]]:
     """Load labelled window CSV files, one capture per file.
 
     A capture is named after its file, without the extension.
 
     Raises:
-        ValueError: If two files share a name, or a window has no label. An
-            unlabelled window means the CSV was built without `--manifests`.
+        ValueError: If two files share a name, or a window has no label.
     """
     captures: dict[str, list[WindowFeatures]] = {}
     for path in paths:
         if path.stem in captures:
             raise ValueError(f"two captures are named {path.stem!r}")
-        windows = read_windows_csv(path)
-        if any(window.label is None for window in windows):
-            raise ValueError(f"{path}: unlabelled windows; build it with --manifests")
-        captures[path.stem] = windows
+        captures[path.stem] = load_labelled_windows(path)
     return captures
 
 

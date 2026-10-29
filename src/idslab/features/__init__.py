@@ -3,6 +3,7 @@
 from idslab.features.flows import FLOW_COLUMNS, build_flows, write_flows_csv
 from idslab.features.labeling import BENIGN_LABEL, label_windows
 from idslab.features.windows import (
+    FEATURE_COLUMNS,
     WINDOW_COLUMNS,
     WindowFeatures,
     build_windows,
@@ -11,6 +12,7 @@ from idslab.features.windows import (
 )
 
 __all__ = [
+    "FEATURE_COLUMNS",
     "BENIGN_LABEL",
     "FLOW_COLUMNS",
     "WINDOW_COLUMNS",
